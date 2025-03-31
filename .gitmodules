@@ -54,3 +54,6 @@
 	path = firmware/clockfaces/cw-cf-0x07
 	url = https://github.com/jnthas/cw-cf-0x07.git
 	shallow = true
+[submodule "firmware/clockfaces/mariov2"]
+	path = firmware/clockfaces/mariov2
+	url = git@github.com:tylergibson/clockwise_mariov2.git
