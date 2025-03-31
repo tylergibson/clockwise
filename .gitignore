@@ -11,3 +11,4 @@ sdkconfig*
 .vscode
 
 dependencies.lock
+firmware/.vscode/launch.json
