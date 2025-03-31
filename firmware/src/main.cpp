@@ -15,6 +15,23 @@
 
 #define ESP32_LED_BUILTIN 2
 
+#define R1_PIN 42
+#define G1_PIN 41
+#define B1_PIN 40
+#define R2_PIN 38
+#define G2_PIN 39
+#define B2_PIN 37
+#define A_PIN  45
+#define B_PIN  36
+#define C_PIN  48
+#define D_PIN  35
+#define E_PIN  21 
+#define LAT_PIN 47
+#define OE_PIN  14
+#define CLK_PIN 2
+HUB75_I2S_CFG::i2s_pins _pins={R1_PIN, G1_PIN, B1_PIN, R2_PIN, G2_PIN, B2_PIN, A_PIN, B_PIN, C_PIN, D_PIN, E_PIN, LAT_PIN, OE_PIN, CLK_PIN};
+
+
 MatrixPanel_I2S_DMA *dma_display = nullptr;
 
 Clockface *clockface;
@@ -28,18 +45,18 @@ uint8_t currentBrightSlot = -1;
 
 void displaySetup(bool swapBlueGreen, uint8_t displayBright, uint8_t displayRotation)
 {
-  HUB75_I2S_CFG mxconfig(64, 64, 1);
+  HUB75_I2S_CFG mxconfig(64, 64, 1, _pins);
 
-  if (swapBlueGreen)
-  {
-    // Swap Blue and Green pins because the panel is RBG instead of RGB.
-    mxconfig.gpio.b1 = 26;
-    mxconfig.gpio.b2 = 12;
-    mxconfig.gpio.g1 = 27;
-    mxconfig.gpio.g2 = 13;
-  }
+  // if (swapBlueGreen)
+  // {
+  //   // Swap Blue and Green pins because the panel is RBG instead of RGB.
+  //   mxconfig.gpio.b1 = 26;
+  //   mxconfig.gpio.b2 = 12;
+  //   mxconfig.gpio.g1 = 27;
+  //   mxconfig.gpio.g2 = 13;
+  // }
 
-  mxconfig.gpio.e = 18;
+  // mxconfig.gpio.e = 18;
   mxconfig.clkphase = false;
 
   // Display Setup
