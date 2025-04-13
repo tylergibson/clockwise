@@ -1,7 +1,116 @@
 #include "Sprite.h"
 #include <Locator.h>
 
-Sprite::Sprite(int8_t x, int8_t y) : _x(x), _y(y), _position_x(x), _position_y(y) {}
+Sprite::Sprite(int8_t x, int8_t y) : _x(x), _y(y), _position_x(x), _position_y(y), 
+    _sprites(nullptr), _masks(nullptr), _totalFrames(0) {}
+
+Sprite::~Sprite() {
+    // Clean up arrays if they were allocated
+    if (_sprites) {
+        delete[] _sprites;
+    }
+    if (_masks) {
+        for (uint8_t i = 0; i < _totalFrames; i++) {
+            delete[] _masks[i];
+        }
+        delete[] _masks;
+    }
+}
+
+void Sprite::createBitMask() {
+    if (!_sprites || !_masks) return;
+    
+    for (uint8_t frame = 0; frame < _totalFrames; frame++) {
+        const unsigned short* sprite = _sprites[frame];
+        if (!sprite) continue;
+        
+        // Calculate the size needed for the mask array
+        size_t maskSize = (_width * _height + 7) / 8;
+        
+        // Allocate memory for the mask
+        uint8_t* mask = new uint8_t[maskSize];
+        std::fill(mask, mask + maskSize, 0);
+        
+        for (size_t i = 0; i < _width * _height; ++i) {
+            // Calculate which byte and bit position we're working with
+            size_t byteIndex = i / 8;
+            size_t bitPosition = i % 8;
+            
+            // If we have a match, set the corresponding bit
+            if (sprite[i] == _maskValue) {
+                mask[byteIndex] |= (1 << bitPosition);
+            }
+        }
+        
+        _masks[frame] = mask;
+    }
+}
+
+void Sprite::setStaticSprite(const unsigned short* sprite, unsigned short maskValue) {
+    // Clean up existing arrays if any
+    if (_sprites) {
+        delete[] _sprites;
+    }
+    if (_masks) {
+        for (uint8_t i = 0; i < _totalFrames; i++) {
+            delete[] _masks[i];
+        }
+        delete[] _masks;
+    }
+    
+    // Allocate single-item arrays
+    _sprites = new const unsigned short*[1];
+    _masks = new uint8_t*[1];
+    
+    // Set the single sprite and store mask value
+    _sprites[0] = sprite;
+    _maskValue = maskValue;
+    
+    _isAnimated = false;
+    _totalFrames = 1;
+    _currentFrame = 0;
+    
+    // Create the mask
+    createBitMask();
+}
+
+void Sprite::setAnimatedSprite(const unsigned short** sprites, unsigned short maskValue, uint8_t totalFrames) {
+    // Clean up existing arrays if any
+    if (_sprites) {
+        delete[] _sprites;
+    }
+    if (_masks) {
+        for (uint8_t i = 0; i < _totalFrames; i++) {
+            delete[] _masks[i];
+        }
+        delete[] _masks;
+    }
+    
+    // Allocate new arrays
+    _sprites = new const unsigned short*[totalFrames];
+    _masks = new uint8_t*[totalFrames];
+    
+    // Copy the sprite pointers and store mask value
+    for (uint8_t i = 0; i < totalFrames; i++) {
+        _sprites[i] = sprites[i];
+    }
+    _maskValue = maskValue;
+    
+    _isAnimated = true;
+    _totalFrames = totalFrames;
+    _currentFrame = 0;
+    
+    // Create the masks
+    createBitMask();
+}
+
+const unsigned short* Sprite::getCurrentSprite() const {
+    return _sprites ? _sprites[_currentFrame] : nullptr;
+}
+
+const uint8_t* Sprite::getCurrentMask() const {
+    return _masks ? _masks[_currentFrame] : nullptr;
+}
 
 void Sprite::setVirtualInput(bool left, bool right, bool up, bool down, bool jump, bool run_modifier, unsigned long duration_ms) {
     _virtual_input.left = left;
@@ -165,12 +274,6 @@ bool Sprite::isMoving() const {
     return _moving;
 }
 
-void Sprite::incFrame() {
-    if (_totalFrames > 1) {
-        _currentFrame = (_currentFrame + 1) % _totalFrames;
-    }
-}
-
 // Position and dimension methods
 void Sprite::setX(int8_t newX) {
     _x = newX;
@@ -238,4 +341,62 @@ void Sprite::logPosition() {
     Serial.print(_x);
     Serial.print(" Y: ");
     Serial.println(_y);
+}
+
+void Sprite::addAnimation(const std::string& name, uint8_t startFrame, uint8_t endFrame) {
+    if (startFrame >= _totalFrames || endFrame >= _totalFrames || startFrame > endFrame) {
+        return; // Invalid frame range
+    }
+    
+    Animation anim;
+    anim.index = _animations.size();
+    anim.name = name;
+    anim.startFrame = startFrame;
+    anim.endFrame = endFrame;
+    _animations.push_back(anim);
+}
+
+void Sprite::playAnimation(uint8_t index) {
+    if (index >= _animations.size()) {
+        return;
+    }
+    _currentAnimation = index;
+    _currentFrame = _animations[index].startFrame;
+    _isPlaying = true;
+}
+
+void Sprite::playAnimation(const std::string& name) {
+    for (const auto& anim : _animations) {
+        if (anim.name == name) {
+            playAnimation(anim.index);
+            return;
+        }
+    }
+}
+
+void Sprite::stopAnimation() {
+    _isPlaying = false;
+}
+
+bool Sprite::isPlaying() const {
+    return _isPlaying;
+}
+
+const Animation* Sprite::getCurrentAnimation() const {
+    if (_currentAnimation >= _animations.size()) {
+        return nullptr;
+    }
+    return &_animations[_currentAnimation];
+}
+
+void Sprite::nextFrame() {
+    if (!_isPlaying) return;
+    
+    const Animation* anim = getCurrentAnimation();
+    if (anim) {
+        _currentFrame++;
+        if (_currentFrame > anim->endFrame) {
+            _currentFrame = anim->startFrame;
+        }
+    }
 }
