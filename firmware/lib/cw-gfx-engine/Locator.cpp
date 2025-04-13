@@ -14,6 +14,11 @@ void Locator::provide(EventBus* eventBus)
   _eventBus = eventBus;
 }
 
+void Locator::provide(GFXcanvas16* canvas)
+{
+  _canvas = canvas;
+}
+
 Adafruit_GFX* Locator::getDisplay() 
 { 
   return _display; 

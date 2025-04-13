@@ -21,6 +21,7 @@ class Locator {
     static GFXcanvas16* getCanvas();
     static void provide(Adafruit_GFX* display);
     static void provide(EventBus* eventBus);
+    static void provide(GFXcanvas16* canvas);
     static void renderToDisplay();
     static void clearCanvas();
 };
