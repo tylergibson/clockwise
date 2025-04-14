@@ -114,32 +114,32 @@ void setup()
   StatusController::getInstance()->clockwiseLogo();
   delay(1000);
 
-  StatusController::getInstance()->wifiConnecting();
-  if (wifi.begin())
-  {
-    StatusController::getInstance()->ntpConnecting();
-    cwDateTime.begin(ClockwiseParams::getInstance()->timeZone.c_str(), 
-        ClockwiseParams::getInstance()->use24hFormat, 
-        ClockwiseParams::getInstance()->ntpServer.c_str(),
-        ClockwiseParams::getInstance()->manualPosix.c_str());
+  // StatusController::getInstance()->wifiConnecting();
+  // if (wifi.begin())
+  // {
+  //   StatusController::getInstance()->ntpConnecting();
+  //   cwDateTime.begin(ClockwiseParams::getInstance()->timeZone.c_str(), 
+  //       ClockwiseParams::getInstance()->use24hFormat, 
+  //       ClockwiseParams::getInstance()->ntpServer.c_str(),
+  //       ClockwiseParams::getInstance()->manualPosix.c_str());
     clockface->setup(&cwDateTime);
-  }
+  // }
 }
 
 void loop()
 {
-  wifi.handleImprovWiFi();
+  // wifi.handleImprovWiFi();
 
-  if (wifi.isConnected())
-  {
-    ClockwiseWebServer::getInstance()->handleHttpRequest();
-    ezt::events();
-  }
+  // if (wifi.isConnected())
+  // {
+  //   ClockwiseWebServer::getInstance()->handleHttpRequest();
+  //   ezt::events();
+  // }
 
-  if (wifi.connectionSucessfulOnce)
-  {
+  // if (wifi.connectionSucessfulOnce)
+  // {
     clockface->update();
-  }
+  // }
 
   automaticBrightControl();
 }

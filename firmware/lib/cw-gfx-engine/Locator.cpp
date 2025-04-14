@@ -2,7 +2,7 @@
 
 Adafruit_GFX* Locator::_display;
 EventBus* Locator::_eventBus;
-GFXcanvas16* Locator::_canvas = new GFXcanvas16(CANVAS_WIDTH, CANVAS_HEIGHT);
+GFXcanvas16* Locator::_canvas;
 
 void Locator::provide(Adafruit_GFX* display)
 {
@@ -32,18 +32,4 @@ EventBus* Locator::getEventBus()
 GFXcanvas16* Locator::getCanvas()
 {
   return _canvas;
-}
-
-void Locator::renderToDisplay()
-{
-  if (_display && _canvas) {
-    _display->drawRGBBitmap(0, 0, _canvas->getBuffer() + (CANVAS_OFFSET_X * CANVAS_HEIGHT), DISPLAY_WIDTH, DISPLAY_HEIGHT);
-  }
-}
-
-void Locator::clearCanvas()
-{
-  if (_canvas) {
-    _canvas->fillScreen(0);
-  }
 }

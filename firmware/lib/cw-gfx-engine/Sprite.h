@@ -5,6 +5,25 @@
 #include <memory>
 #include <algorithm>
 #include <string>
+#include <limits.h>
+
+// Each asset is defined as an array of 16-bit unsigned integers.
+// The config array defines the height, width, length, and mask value for the asset.
+//  For animated assets, the config array also includes the number of frames in the last position.
+// The data array defines the asset's pixels.
+//  For animated assets, the data array is a 2D array of the frames.
+struct SpriteConfig {
+    const uint8_t height;
+    const uint8_t width;
+    const uint16_t length;
+    const uint16_t mask_value;
+    const uint8_t total_frames=1;
+
+		SpriteConfig(const uint8_t height, const uint8_t width, const uint16_t mask_value, const uint8_t total_frames) : 
+			height(height), width(width), length(height*width), mask_value(mask_value), total_frames(total_frames) {}
+		SpriteConfig(const uint8_t height, const uint8_t width, const uint16_t mask_value) : 
+			height(height), width(width), length(height*width), mask_value(mask_value), total_frames(1) {}
+};
 
 // Virtual input state structure
 struct VirtualInput {
@@ -18,6 +37,13 @@ struct VirtualInput {
     unsigned long duration = 0;
 };
 
+enum Direction {
+    UP,
+    DOWN,
+    LEFT,
+    RIGHT
+};
+
 // Animation structure
 struct Animation {
     uint8_t index;
@@ -28,15 +54,15 @@ struct Animation {
 
 class Sprite {
   protected:
-    int8_t _x;
-    int8_t _y;
-    uint8_t _width;
+    // Sprites always start located at the minimum possible position (hopefully off screen)
+    int _x = INT_MIN;
+    int _y = INT_MIN;
     uint8_t _height;
-    const unsigned short** _sprites = nullptr;  // Array of sprite pointers
-    uint8_t** _masks = nullptr;    // Array of mask pointers
-    unsigned short _maskValue = 0;        // Value to use for creating masks
-    const unsigned short* _staticSprite = nullptr;  // Single sprite for static mode
-    const unsigned short* _staticMask = nullptr;    // Single mask for static mode
+    uint8_t _width;
+    uint16_t _length;
+    const uint16_t** _sprites = nullptr;  // Array of sprite pointers
+    const uint8_t** _masks = nullptr;    // Array of mask pointers
+    uint16_t _maskValue = 0;        // Value to use for creating masks
     bool _visible = true;
     bool _isAnimated = false;
     
@@ -55,12 +81,12 @@ class Sprite {
     // Physics state
     float _velocity_x = 0;
     float _velocity_y = 0;
-    float _position_x = 0;
-    float _position_y = 0;
+    float _position_x = INT_MIN;
+    float _position_y = INT_MIN;
     bool _is_grounded = true;
     
     // Ground configuration
-    float _ground_height = 63; // Default to bottom of display
+    float _ground_height = 0; // Default to bottom of display
     
     // Animation state
     std::vector<Animation> _animations;
@@ -87,7 +113,6 @@ class Sprite {
     void updatePhysics();
     void applyInputs();
     void updatePosition();
-    void checkCollisions();
     void createBitMask();
 
     // Helper function for clamping values
@@ -96,14 +121,22 @@ class Sprite {
         return std::min(std::max(value, min), max);
     }
 
+    // Collision handling
+    void handleCollision(std::shared_ptr<Sprite>& other);
+
   public:
-    Sprite(int8_t x, int8_t y);
+    void checkGroundPlane();
+    void collided(Direction direction);
+    Sprite(uint8_t height, uint8_t width, uint16_t maskValue);
+    Sprite(uint8_t height, uint8_t width, uint16_t maskValue, uint8_t totalFrames);
+    Sprite(SpriteConfig config);
+
     virtual ~Sprite();
     
     // Sprite and mask management
-    void setStaticSprite(const unsigned short* sprite, unsigned short maskValue);
-    void setAnimatedSprite(const unsigned short** sprites, unsigned short maskValue, uint8_t totalFrames);
-    const unsigned short* getCurrentSprite() const;
+    void setStaticSprite(const uint16_t* sprite);
+    void setAnimatedSprite(const uint16_t* sprites);
+    const uint16_t* getCurrentSprite() const;
     const uint8_t* getCurrentMask() const;
     bool isAnimated() const { return _isAnimated; }
     
@@ -114,22 +147,23 @@ class Sprite {
     float getGroundHeight() const;
     
     // Movement and animation methods
-    void startMoving(int8_t targetX, int8_t targetY, unsigned long duration, bool shouldReturnToOrigin);
-    void reverseMoving(int8_t targetX, int8_t targetY);
+    void startMoving(int targetX, int targetY, unsigned long duration, bool shouldReturnToOrigin);
+    void reverseMoving(int targetX, int targetY);
     void stopMoving();
     bool isMoving() const;
     
     // Position and dimension methods
-    void setX(int8_t newX);
-    void setY(int8_t newY);
-    int8_t getX() const;
-    int8_t getY() const;
+    void setX(int newX);
+    void setY(int newY);
+    void setPosition(int newX, int newY);
+    int getX() const;
+    int getY() const;
     uint8_t getWidth() const;
     uint8_t getHeight() const;
-    void setDimensions(uint8_t width, uint8_t height);
+    void setDimensions(uint8_t height, uint8_t width);
     
     // Linear interpolation helper
-    int8_t lerp(int8_t start, int8_t end, float t);
+    int lerp(int start, int end, float t);
     
     // Update method to be called in game loop
     virtual void update();
@@ -153,4 +187,6 @@ class Sprite {
     const Animation* getCurrentAnimation() const;
 
     //virtual const char* name();
+
+    void checkCollision(std::shared_ptr<Sprite>& other);
 };

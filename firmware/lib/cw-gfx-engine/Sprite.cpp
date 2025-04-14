@@ -1,9 +1,20 @@
 #include "Sprite.h"
 #include <Locator.h>
 
-Sprite::Sprite(int8_t x, int8_t y) : _x(x), _y(y), _position_x(x), _position_y(y), 
-    _sprites(nullptr), _masks(nullptr), _totalFrames(0) {}
+// Constructors
+Sprite::Sprite(uint8_t height, uint8_t width, uint16_t maskValue) : 
+    _height(height), _width(width), _length(height*width), _sprites(nullptr), _masks(nullptr), _totalFrames(1), _maskValue(maskValue) {
+}
 
+Sprite::Sprite(uint8_t height, uint8_t width, uint16_t maskValue, uint8_t totalFrames) : 
+    _height(height), _width(width), _length(height*width), _sprites(nullptr), _masks(nullptr), _totalFrames(totalFrames), _maskValue(maskValue) {
+}
+
+Sprite::Sprite(SpriteConfig config) : 
+    _height(config.height), _width(config.width), _length(config.length), _sprites(nullptr), _masks(nullptr), _totalFrames(config.total_frames), _maskValue(config.mask_value) {
+}
+
+// Destructor
 Sprite::~Sprite() {
     // Clean up arrays if they were allocated
     if (_sprites) {
@@ -21,24 +32,24 @@ void Sprite::createBitMask() {
     if (!_sprites || !_masks) return;
     
     for (uint8_t frame = 0; frame < _totalFrames; frame++) {
-        const unsigned short* sprite = _sprites[frame];
+        const uint16_t* sprite = _sprites[frame];
         if (!sprite) continue;
         
-        // Calculate the size needed for the mask array
-        size_t maskSize = (_width * _height + 7) / 8;
+        // Calculate bytes per row (round up to nearest byte)
+        size_t bytesPerRow = (_width + 7) / 8;
+        size_t maskSize = bytesPerRow * _height;
         
-        // Allocate memory for the mask
-        uint8_t* mask = new uint8_t[maskSize];
-        std::fill(mask, mask + maskSize, 0);
+        // Allocate and zero initialize the mask array
+        uint8_t* mask = new uint8_t[maskSize]();
         
-        for (size_t i = 0; i < _width * _height; ++i) {
-            // Calculate which byte and bit position we're working with
-            size_t byteIndex = i / 8;
-            size_t bitPosition = i % 8;
-            
-            // If we have a match, set the corresponding bit
-            if (sprite[i] == _maskValue) {
-                mask[byteIndex] |= (1 << bitPosition);
+        // Create mask with MSB first for each group of 8 pixels
+        for (size_t row = 0; row < _height; row++) {
+            for (size_t col = 0; col < _width; col++) {
+                if (sprite[row * _width + col] != _maskValue) {
+                    size_t byteIndex = row * bytesPerRow + (col / 8);
+                    size_t bitPosition = 7 - (col % 8);  // MSB first
+                    mask[byteIndex] |= (1 << bitPosition);
+                }
             }
         }
         
@@ -46,7 +57,7 @@ void Sprite::createBitMask() {
     }
 }
 
-void Sprite::setStaticSprite(const unsigned short* sprite, unsigned short maskValue) {
+void Sprite::setStaticSprite(const uint16_t* sprite) {
     // Clean up existing arrays if any
     if (_sprites) {
         delete[] _sprites;
@@ -60,11 +71,10 @@ void Sprite::setStaticSprite(const unsigned short* sprite, unsigned short maskVa
     
     // Allocate single-item arrays
     _sprites = new const unsigned short*[1];
-    _masks = new uint8_t*[1];
+    _masks = new const uint8_t*[1];
     
     // Set the single sprite and store mask value
     _sprites[0] = sprite;
-    _maskValue = maskValue;
     
     _isAnimated = false;
     _totalFrames = 1;
@@ -74,7 +84,7 @@ void Sprite::setStaticSprite(const unsigned short* sprite, unsigned short maskVa
     createBitMask();
 }
 
-void Sprite::setAnimatedSprite(const unsigned short** sprites, unsigned short maskValue, uint8_t totalFrames) {
+void Sprite::setAnimatedSprite(const uint16_t* sprites) {
     // Clean up existing arrays if any
     if (_sprites) {
         delete[] _sprites;
@@ -87,24 +97,22 @@ void Sprite::setAnimatedSprite(const unsigned short** sprites, unsigned short ma
     }
     
     // Allocate new arrays
-    _sprites = new const unsigned short*[totalFrames];
-    _masks = new uint8_t*[totalFrames];
+    _sprites = new const uint16_t*[_totalFrames];
+    _masks = new const uint8_t*[_totalFrames];
     
-    // Copy the sprite pointers and store mask value
-    for (uint8_t i = 0; i < totalFrames; i++) {
-        _sprites[i] = sprites[i];
+    // Split sprites into chunks of size _length and store them
+    for (uint8_t i = 0; i < _totalFrames; i++) {
+        _sprites[i] = &sprites[i * _length];
     }
-    _maskValue = maskValue;
     
     _isAnimated = true;
-    _totalFrames = totalFrames;
     _currentFrame = 0;
     
     // Create the masks
     createBitMask();
 }
 
-const unsigned short* Sprite::getCurrentSprite() const {
+const uint16_t* Sprite::getCurrentSprite() const {
     return _sprites ? _sprites[_currentFrame] : nullptr;
 }
 
@@ -136,35 +144,35 @@ float Sprite::getGroundHeight() const {
 }
 
 void Sprite::update() {
-    unsigned long current_time = millis();
+    // unsigned long current_time = millis();
     
-    // Check if we should process a new tick
-    if (current_time - _last_tick >= _tick_interval) {
-        _last_tick = current_time;
+    // // Check if we should process a new tick
+    // if (current_time - _last_tick >= _tick_interval) {
+    //     _last_tick = current_time;
         
-        // Check if virtual input duration has expired
-        if (_virtual_input.duration > 0 && 
-            current_time - _virtual_input.start_time >= _virtual_input.duration) {
-            // Reset virtual inputs
-            _virtual_input.left = false;
-            _virtual_input.right = false;
-            _virtual_input.up = false;
-            _virtual_input.down = false;
-            _virtual_input.jump = false;
-            _virtual_input.run_modifier = false;
-            _virtual_input.duration = 0;
-        }
+    //     // Check if virtual input duration has expired
+    //     if (_virtual_input.duration > 0 && 
+    //         current_time - _virtual_input.start_time >= _virtual_input.duration) {
+    //         // Reset virtual inputs
+    //         _virtual_input.left = false;
+    //         _virtual_input.right = false;
+    //         _virtual_input.up = false;
+    //         _virtual_input.down = false;
+    //         _virtual_input.jump = false;
+    //         _virtual_input.run_modifier = false;
+    //         _virtual_input.duration = 0;
+    //     }
         
-        // Update physics and apply inputs
-        updatePhysics();
-        applyInputs();
-        updatePosition();
-        checkCollisions();
+    //     // Update physics and apply inputs
+    //     updatePhysics();
+    //     applyInputs();
+    //     updatePosition();
+    //     checkGroundPlane();
         
-        // Update sprite position based on physics
-        _x = static_cast<int8_t>(_position_x);
-        _y = static_cast<int8_t>(_position_y);
-    }
+    //     // Update sprite position based on physics
+    //     _x = static_cast<int8_t>(_position_x);
+    //     _y = static_cast<int8_t>(_position_y);
+    // }
 }
 
 void Sprite::updatePhysics() {
@@ -222,7 +230,7 @@ void Sprite::updatePosition() {
     _position_x = clamp(_position_x, 0.0f, 63.0f); // Assuming 64x64 display
 }
 
-void Sprite::checkCollisions() {
+void Sprite::checkGroundPlane() {
     // Ground collision check using configured ground height
     if (_position_y >= _ground_height) {
         _position_y = _ground_height;
@@ -231,18 +239,18 @@ void Sprite::checkCollisions() {
     }
     
     // Wall collisions only if sprite is on screen
-    if (_position_x <= 0) {
-        _position_x = 0;
-        _velocity_x = 0;
-    }
-    if (_position_x >= 63) { // Assuming 64x64 display
-        _position_x = 63;
-        _velocity_x = 0;
-    }
+    // if (_position_x <= 0) {
+    //     _position_x = 0;
+    //     _velocity_x = 0;
+    // }
+    // if (_position_x >= 63) { // Assuming 64x64 display
+    //     _position_x = 63;
+    //     _velocity_x = 0;
+    // }
 }
 
 // Movement and animation methods
-void Sprite::startMoving(int8_t targetX, int8_t targetY, unsigned long duration, bool shouldReturnToOrigin) {
+void Sprite::startMoving(int targetX, int targetY, unsigned long duration, bool shouldReturnToOrigin) {
     _moveStartTime = millis();
     _moveDuration = duration;
     _moveInitialX = getX();
@@ -254,9 +262,8 @@ void Sprite::startMoving(int8_t targetX, int8_t targetY, unsigned long duration,
     _isReversing = false;
 }
 
-void Sprite::reverseMoving(int8_t targetX, int8_t targetY) {
+void Sprite::reverseMoving(int targetX, int targetY) {
     _moveStartTime = millis();
-    _moveDuration = _moveDuration;
     _moveInitialX = getX();
     _moveInitialY = getY();
     _moveTargetX = targetX;
@@ -266,137 +273,143 @@ void Sprite::reverseMoving(int8_t targetX, int8_t targetY) {
     _isReversing = true;
 }
 
-void Sprite::stopMoving() {
-    _moving = false;
-}
-
-bool Sprite::isMoving() const {
-    return _moving;
-}
+void Sprite::stopMoving() { _moving = false; }
+bool Sprite::isMoving() const { return _moving; }
 
 // Position and dimension methods
-void Sprite::setX(int8_t newX) {
-    _x = newX;
-    _position_x = newX;
-}
-
-void Sprite::setY(int8_t newY) {
-    _y = newY;
-    _position_y = newY;
-}
-
-int8_t Sprite::getX() const {
-    return _x;
-}
-
-int8_t Sprite::getY() const {
-    return _y;
-}
-
-uint8_t Sprite::getWidth() const {
-    return _width;
-}
-
-uint8_t Sprite::getHeight() const {
-    return _height;
-}
-
-void Sprite::setDimensions(uint8_t width, uint8_t height) {
-    _width = width;
-    _height = height;
-}
+void Sprite::setX(int newX) { _x = newX; _position_x = newX; }
+void Sprite::setY(int newY) { _y = newY; _position_y = newY; }
+void Sprite::setPosition(int newX, int newY) { _x = newX; _y = newY; _position_x = newX; _position_y = newY; }
+int Sprite::getX() const { return _x; }
+int Sprite::getY() const { return _y; }
+uint8_t Sprite::getWidth() const { return _width; }
+uint8_t Sprite::getHeight() const { return _height; }
+void Sprite::setDimensions(uint8_t width, uint8_t height) { _width = width; _height = height; }
 
 // Linear interpolation helper
-int8_t Sprite::lerp(int8_t start, int8_t end, float t) {
-    return start + static_cast<int8_t>(t * (end - start));
+int Sprite::lerp(int start, int end, float t) {
+    return static_cast<int>(start + (end - start) * t);
 }
 
 // Getters for movement state
-bool Sprite::shouldReturnToOrigin() const {
-    return _shouldReturnToOrigin;
-}
+bool Sprite::shouldReturnToOrigin() const { return _shouldReturnToOrigin; }
+float Sprite::getVelocityX() const { return _velocity_x; }
+float Sprite::getVelocityY() const { return _velocity_y; }
+bool Sprite::isGrounded() const { return _is_grounded; }
 
-float Sprite::getVelocityX() const {
-    return _velocity_x;
-}
-
-float Sprite::getVelocityY() const {
-    return _velocity_y;
-}
-
-bool Sprite::isGrounded() const {
-    return _is_grounded;
-}
-
-// Existing collision detection method
-boolean Sprite::collidedWith(Sprite* sprite) {
-    return !(_x + _width < sprite->_x || 
-             _x > sprite->_x + sprite->_width || 
-             _y + _height < sprite->_y || 
-             _y > sprite->_y + sprite->_height);
-}
-
-void Sprite::logPosition() {
-    Serial.print("X: ");
-    Serial.print(_x);
-    Serial.print(" Y: ");
-    Serial.println(_y);
-}
-
+// Animation management
 void Sprite::addAnimation(const std::string& name, uint8_t startFrame, uint8_t endFrame) {
-    if (startFrame >= _totalFrames || endFrame >= _totalFrames || startFrame > endFrame) {
-        return; // Invalid frame range
-    }
-    
     Animation anim;
-    anim.index = _animations.size();
     anim.name = name;
     anim.startFrame = startFrame;
     anim.endFrame = endFrame;
+    anim.index = _animations.size();
     _animations.push_back(anim);
 }
 
 void Sprite::playAnimation(uint8_t index) {
-    if (index >= _animations.size()) {
-        return;
+    if (index < _animations.size()) {
+        _currentAnimation = index;
+        _currentFrame = _animations[index].startFrame;
+        _isPlaying = true;
     }
-    _currentAnimation = index;
-    _currentFrame = _animations[index].startFrame;
-    _isPlaying = true;
 }
 
 void Sprite::playAnimation(const std::string& name) {
-    for (const auto& anim : _animations) {
-        if (anim.name == name) {
-            playAnimation(anim.index);
+    for (size_t i = 0; i < _animations.size(); i++) {
+        if (_animations[i].name == name) {
+            playAnimation(i);
             return;
         }
     }
 }
 
-void Sprite::stopAnimation() {
-    _isPlaying = false;
-}
+void Sprite::stopAnimation() { _isPlaying = false; }
+bool Sprite::isPlaying() const { return _isPlaying; }
 
-bool Sprite::isPlaying() const {
-    return _isPlaying;
+void Sprite::nextFrame() {
+    if (!_isPlaying || !_isAnimated) return;
+    
+    _currentFrame++;
+    if (_currentFrame > _animations[_currentAnimation].endFrame) {
+        _currentFrame = _animations[_currentAnimation].startFrame;
+    }
 }
 
 const Animation* Sprite::getCurrentAnimation() const {
-    if (_currentAnimation >= _animations.size()) {
-        return nullptr;
-    }
-    return &_animations[_currentAnimation];
+    return _currentAnimation < _animations.size() ? &_animations[_currentAnimation] : nullptr;
 }
 
-void Sprite::nextFrame() {
-    if (!_isPlaying) return;
+// Collision detection
+boolean Sprite::collidedWith(Sprite* sprite) {
+    if (!sprite) return false;
     
-    const Animation* anim = getCurrentAnimation();
-    if (anim) {
-        _currentFrame++;
-        if (_currentFrame > anim->endFrame) {
-            _currentFrame = anim->startFrame;
-        }
+    int thisRight = _x + _width;
+    int thisBottom = _y + _height;
+    int otherRight = sprite->getX() + sprite->getWidth();
+    int otherBottom = sprite->getY() + sprite->getHeight();
+    
+    return !(_x >= otherRight || thisRight <= sprite->getX() ||
+             _y >= otherBottom || thisBottom <= sprite->getY());
+}
+
+void Sprite::logPosition() {
+    Serial.print("Sprite position: (");
+    Serial.print(_x);
+    Serial.print(", ");
+    Serial.print(_y);
+    Serial.println(")");
+}
+
+void Sprite::checkCollision(std::shared_ptr<Sprite>& other) {
+    // Get bounding boxes
+    int16_t x1 = getX();
+    int16_t y1 = getY();
+    int16_t w1 = getWidth();
+    int16_t h1 = getHeight();
+    
+    int16_t x2 = other->getX();
+    int16_t y2 = other->getY();
+    int16_t w2 = other->getWidth();
+    int16_t h2 = other->getHeight();
+    
+    // Check for overlap
+    if (!(x1 + w1 < x2 || x2 + w2 < x1 || y1 + h1 < y2 || y2 + h2 < y1)) {
+        handleCollision(other);
     }
+}
+
+void Sprite::handleCollision(std::shared_ptr<Sprite>& other) {
+    // Calculate combined velocity vector
+    float vx1 = getVelocityX();
+    float vy1 = getVelocityY();
+    float vx2 = other->getVelocityX();
+    float vy2 = other->getVelocityY();
+    
+    float combinedVx = vx1 + vx2;
+    float combinedVy = vy1 + vy2;
+    
+    // Find closest cardinal direction
+    float magnitude = sqrt(combinedVx * combinedVx + combinedVy * combinedVy);
+    float angle = atan2(combinedVy, combinedVx);
+    
+    // Convert angle to nearest cardinal direction
+    Direction direction;
+    if (angle >= -M_PI/4 && angle < M_PI/4) {
+        direction = RIGHT;
+    } else if (angle >= M_PI/4 && angle < 3*M_PI/4) {
+        direction = DOWN;
+    } else if (angle >= 3*M_PI/4 || angle < -3*M_PI/4) {
+        direction = LEFT;
+    } else {
+        direction = UP;
+    }
+    
+    // Apply collision response
+    collided(direction);
+    other->collided(direction);
+}
+
+void Sprite::collided(Direction direction) {
+    // Apply the collision force based on direction
 }
